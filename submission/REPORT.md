@@ -81,21 +81,21 @@ Giữ đúng ba output text và năm ảnh dưới đây. Không tách thêm ả
 
 ## 8. Giải thích và tự đánh giá
 
-- **Một quyết định kỹ thuật quan trọng và lý do:**
-- **Một lỗi/blocker đã gặp:**
-- **Cách tìm nguyên nhân và xử lý:**
-- **Cách hiểu luồng Metrics → Logs → Traces:**
-- **Vai trò của prompt version, token/cost, SLO hoặc rollback trong vận hành LLM:**
-- **Điều quan trọng nhất đã học:**
-- **Hạn chế hoặc phần chưa hoàn thành, nếu có:**
+- **Một quyết định kỹ thuật quan trọng và lý do:** Dùng `correlation_id` (`x-request-id`) làm khoá chung cho cả log và trace: middleware bind ID vào structlog context, còn agent đưa cùng ID vào metadata trace qua `propagate_attributes`. Nhờ vậy khi điều tra CP3 tôi đi thẳng từ log `req-3fd90fa8` sang đúng trace `cf95dbef…` thay vì mở trace ngẫu nhiên. Tôi cũng chọn không capture input/output thô trên Langfuse (`capture_input=False`, `capture_output=False`) và chỉ ghi `message_preview` đã scrub, vì câu hỏi có thể chứa PII.
+- **Một lỗi/blocker đã gặp:** Trong project Langfuse có 85 trace `lab-agent-run` nhưng chỉ 63 trace có span `retrieval`/`generation`, và nhiều trace sớm có `prompt_source=local-fallback`, `prompt_version=local-v1` thay vì version từ Langfuse.
+- **Cách tìm nguyên nhân và xử lý:** Lọc theo tên observation trên Langfuse thì thấy 22 trace thiếu con đều được tạo trước khi tôi thêm `@observe` cho `retrieve` và `FakeLLM.generate`; các trace `local-fallback` được tạo trước khi prompt text `day13-chat` tồn tại, nên `get_prompt` trả fallback. Sau khi thêm decorator, tạo prompt v1/v2 và restart API, các trace mới đều đủ cây và có `prompt_source=langfuse`. Tôi chỉ tính 63 trace đủ cây là trace hợp lệ. Ngoài ra, API trace cũ (`/api/public/traces`) trả 410 với organization mới nên tôi chuyển sang Observations API v2 để tra trace theo `correlation_id`.
+- **Cách hiểu luồng Metrics → Logs → Traces:** Metrics trả lời "có vấn đề không, ở đâu, từ lúc nào" trên toàn bộ traffic (CP3: P50 latency 152 → 2653 ms trong khi TTFT, error, token không đổi). Logs thu hẹp xuống từng request cụ thể trong khoảng thời gian đó và cho `correlation_id` (`req-3fd90fa8`, `latency_ms=2653`, `ttft_ms=50`). Traces tách request đó thành từng bước để chỉ ra span gây chậm (`retrieval` 2504 ms, `generation` 152 ms). Mỗi tầng loại bớt giả thuyết cho tầng sau; bỏ qua metrics mà mở trace ngay thì dễ kết luận từ một request không đại diện.
+- **Vai trò của prompt version, token/cost, SLO hoặc rollback trong vận hành LLM:** Prompt version + label cho phép đổi hành vi mô hình mà không deploy code: tôi promote `production` sang v2 rồi rollback về v1 chỉ bằng cách dời label, và `prompt_version` trong trace cho biết chính xác request nào chạy version nào (v2 làm `tokens_in` tăng 27 → 40). Token/cost là tín hiệu riêng của LLM mà latency/error không bắt được (ví dụ output dài bất thường làm tăng chi phí). SLO 99.5% với ngưỡng 3000 ms biến "chậm" thành con số có error budget (50 request / 10,000), giúp quyết định khi nào cần alert và rollback thay vì phản ứng theo cảm tính.
+- **Điều quan trọng nhất đã học:** Observability chỉ hữu ích khi các tín hiệu nối được với nhau. Một metric latency cao đơn lẻ không nói nguyên nhân; nhưng khi metric, log và trace cùng mang `correlation_id` và cùng chỉ về một span, root cause có bằng chứng thay vì phỏng đoán. Việc so sánh với baseline (retrieval 0 ms lúc bình thường) cũng quan trọng không kém việc thấy con số bất thường.
+- **Hạn chế hoặc phần chưa hoàn thành, nếu có:** Dashboard là script local tự viết, chưa có alert tự động gửi Slack — `config/alert_rules.yaml` mới dừng ở định nghĩa rule và runbook. Log chưa có trường `retrieval_latency_ms` riêng nên panel latency chỉ phát hiện được "chậm" còn phải mở trace mới biết chậm ở retrieval. `/chat` gọi `agent.run()` đồng bộ trong handler async nên request bị xử lý tuần tự; tôi mới ghi nhận vấn đề này (thời gian phía client 8–13 s khi concurrency 5), chưa sửa. Cửa sổ challenge chỉ có 5 request nên P95 bằng chính giá trị lớn nhất.
 
 ## 9. Checklist trước khi nộp
 
 - [ ] Kết quả và evidence thuộc commit SHA cuối.
-- [ ] Tất cả ảnh/output mở được bằng đường dẫn tương đối.
-- [ ] Có đúng 3 file text và 5 ảnh runtime theo hướng dẫn.
-- [ ] Incident evidence nối đúng metric → log → trace.
-- [ ] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret.
-- [ ] Repository chạy lại được theo README.
-- [ ] Không có secret, API key, PII thô hoặc evidence của người khác/lớp khác.
+- [x] Tất cả ảnh/output mở được bằng đường dẫn tương đối.
+- [x] Có đúng 3 file text và 5 ảnh runtime theo hướng dẫn.
+- [x] Incident evidence nối đúng metric → log → trace.
+- [x] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret.
+- [x] Repository chạy lại được theo README.
+- [x] Không có secret, API key, PII thô hoặc evidence của người khác/lớp khác.
 - [ ] URL repo và commit SHA cuối đã được nộp trên LMS/Codelabs.
