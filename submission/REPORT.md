@@ -7,7 +7,7 @@
 - **Họ và tên:** Nguyễn Hữu Thành
 - **MSSV:** 2A202602807
 - **Lớp:** K4-L3B
-- **Repository URL:** https://github.com/hthanh1412004/K4-L3-DAY13-NguyenHuuThanh-2A202602807-Monitoring-LLMOps.git
+- **Repository URL:** https://github.com/hthanh1412004/K4-L3B-DAY13-NguyenHuuThanh-2A202602807-Monitoring-LLMOps.git
 - **Commit SHA cuối:**
 - **Challenge ID:** `day13-k4-l3b-monitoring-llmops-v1`
 - **Tên project Langfuse cá nhân:** `day13-k4-l3b-2A202602807`
