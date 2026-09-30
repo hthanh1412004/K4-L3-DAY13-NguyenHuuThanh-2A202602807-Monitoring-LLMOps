@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 
 from app import agent as agent_module
+from app import mock_llm as mock_llm_module
 
 
 class ManagedPrompt:
@@ -26,6 +27,14 @@ class RecordingLangfuseClient:
 
     def update_current_span(self, **kwargs) -> None:
         self.span_updates.append(kwargs)
+
+
+class RecordingGenerationClient:
+    def __init__(self) -> None:
+        self.generation_updates: list[dict] = []
+
+    def update_current_generation(self, **kwargs) -> None:
+        self.generation_updates.append(kwargs)
 
 
 def test_agent_records_prompt_version_with_v4_observation_api(monkeypatch) -> None:
@@ -67,3 +76,23 @@ def test_agent_records_prompt_version_with_v4_observation_api(monkeypatch) -> No
     assert span_update["version"] == "3"
     assert propagated[0]["metadata"]["correlation_id"] == "req-12345678"
     assert propagated[-1]["prompt"] is client.prompt
+
+
+def test_generation_records_model_usage_cost_without_raw_io(monkeypatch) -> None:
+    client = RecordingGenerationClient()
+    monkeypatch.setattr(mock_llm_module, "get_langfuse_client", lambda: client)
+
+    llm = mock_llm_module.FakeLLM()
+    response = mock_llm_module.FakeLLM.generate.__wrapped__(llm, "safe prompt")
+
+    update = client.generation_updates[-1]
+    assert update["model"] == llm.model
+    assert update["usage_details"] == {
+        "input": response.usage.input_tokens,
+        "output": response.usage.output_tokens,
+        "total": response.usage.input_tokens + response.usage.output_tokens,
+    }
+    assert update["cost_details"]["total"] > 0
+    assert update["metadata"] == {"ttft_ms": response.ttft_ms}
+    assert "input" not in update
+    assert "output" not in update
