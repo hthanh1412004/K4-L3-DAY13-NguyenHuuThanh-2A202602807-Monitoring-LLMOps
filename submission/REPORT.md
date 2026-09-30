@@ -1,6 +1,6 @@
 # Báo cáo cá nhân — K4-L3B Day 13 Monitoring & LLMOps
 
-> Mỗi học viên hoàn thiện một file duy nhất này. Chỉ cần 3 output text và 5 ảnh runtime; dùng đường dẫn tương đối, ví dụ `evidence/03-incident-trace.png`.
+> Mỗi học viên hoàn thiện một file duy nhất này. Khi dẫn evidence, dùng đường dẫn tương đối, ví dụ `evidence/07-trace-waterfall.png`.
 
 ## 1. Thông tin học viên
 
@@ -14,18 +14,24 @@
 
 ## 2. Evidence index
 
-Giữ đúng ba output text và năm ảnh dưới đây. Không tách thêm ảnh; nếu cần giải thích, ghi bằng chữ trong các mục sau.
+Điền đúng đường dẫn tới evidence thực tế. Có thể đổi tên hoặc dùng nhiều ảnh nếu cần.
 
 | Evidence | Đường dẫn |
 |---|---|
-| Pytest cuối | `evidence/pytest.txt` |
-| Log validator | `evidence/log-validator.txt` |
-| Dashboard validator | `evidence/dashboard-validator.txt` |
-| Structured log + incident log | `evidence/01-incident-log.png` |
-| Trace list | `evidence/02-trace-list.png` |
-| Trace waterfall + metadata + incident trace | `evidence/03-incident-trace.png` |
-| Prompt versions + promote/rollback | `evidence/04-prompt-versioning.png` |
-| Dashboard + incident metric | `evidence/05-dashboard-incident.png` |
+| Pytest cuối | `evidence/01-pytest.png` |
+| Log validator | `evidence/02-log-validator.png` |
+| Dashboard validator | `evidence/03-dashboard-validator.png` |
+| Structured log | `evidence/04-structured-log.png` |
+| PII redaction | `evidence/05-pii-redaction.png` |
+| Trace list | `evidence/06-trace-list.png` |
+| Trace waterfall | `evidence/07-trace-waterfall.png` |
+| Trace metadata | `evidence/08-trace-metadata.png` |
+| Prompt versions | `evidence/09-prompt-versions.png` |
+| Prompt rollback | `evidence/10-prompt-rollback.png` |
+| Dashboard runtime | `evidence/11-dashboard-overview.png` |
+| Incident metric | `evidence/12-incident-metric.png` |
+| Incident log | `evidence/13-incident-log.png` |
+| Incident trace | `evidence/14-incident-trace.png` |
 
 ## 3. Kết quả kỹ thuật
 
@@ -59,7 +65,7 @@ Giữ đúng ba output text và năm ảnh dưới đây. Không tách thêm ả
 
 ## 6. Dashboard, SLO và alerts
 
-- **Dashboard và sáu panel:** Dashboard local `scripts/dashboard.py` (http://127.0.0.1:8501) đọc `data/logs.jsonl` theo `config/dashboard.yaml`, time range 60 phút, auto-refresh 30 giây, mỗi panel có đơn vị và đường threshold (`evidence/05-dashboard-incident.png`). Kết quả trên 40 request: Latency P50/P95/P99 = 151/153/1354 ms, TTFT P95 50 ms (threshold P95 ≤ 3000 ms); Traffic 40 request, đỉnh khoảng 10 request/phút (threshold ≥ 1/phút); Errors 0% và retrieval success 100% (threshold error ≤ 2%, retrieval ≥ 90%); Cost $0.0829 (threshold ≤ $2.5); Tokens 1,352 input + 5,257 output = 6,609 (threshold ≤ 50,000); Quality trung bình 0.88 (threshold ≥ 0.75).
+- **Dashboard và sáu panel:** Dashboard local `scripts/dashboard.py` (http://127.0.0.1:8501) đọc `data/logs.jsonl` theo `config/dashboard.yaml`, time range 60 phút, auto-refresh 30 giây, mỗi panel có đơn vị và đường threshold (`evidence/11-dashboard-overview.png`). Kết quả trên 40 request: Latency P50/P95/P99 = 151/153/1354 ms, TTFT P95 50 ms (threshold P95 ≤ 3000 ms); Traffic 40 request, đỉnh khoảng 10 request/phút (threshold ≥ 1/phút); Errors 0% và retrieval success 100% (threshold error ≤ 2%, retrieval ≥ 90%); Cost $0.0829 (threshold ≤ $2.5); Tokens 1,352 input + 5,257 output = 6,609 (threshold ≤ 50,000); Quality trung bình 0.88 (threshold ≥ 0.75).
 - **SLO và lý do chọn:** `fast_successful_requests`: 99.5% request phải trả `response_sent` với `latency_ms ≤ 3000` trong cửa sổ 28 ngày. Baseline CP1 có P95 khoảng 2165 ms và TTFT P95 50 ms; lần đo cho dashboard CP2 có P95 153 ms, nên ngưỡng 3000 ms chừa khoảng đệm cho request đầu khi khởi động nhưng vẫn bắt được incident `rag_slow` (retrieval chậm thêm 2.5 s). Guardrail phụ: error rate ≤ 2%, cost ≤ $2.5/ngày, quality ≥ 0.75, retrieval success ≥ 90%.
 - **Cách tính error budget:** Error budget = 100% − 99.5% = 0.5%. Với 10,000 request trong 28 ngày thì được phép tối đa 10,000 × 0.005 = 50 request lỗi hoặc chậm hơn 3000 ms. Trong cửa sổ dashboard hiện tại (40 request) chưa tiêu tốn budget: 0 lỗi, 0 request vượt 3000 ms.
 - **Ba alert và runbook tương ứng:** (1) `HighLatencyP95` — warning khi P95 `latency_ms` > 3000 ms trong 5 phút → `docs/alerts.md#alert-1`; (2) `HighRequestErrorRate` — critical khi `request_failed / request_received` > 2% trong 5 phút → `docs/alerts.md#alert-2`; (3) `LowRetrievalSuccessRate` — warning khi tỉ lệ `tool_success == true` < 90% trong 5 phút → `docs/alerts.md#alert-3`. Cả ba là alert symptom-based, owner `student-2A202602807`, channel `#k4-l3b-alerts`; runbook đi theo thứ tự Metrics → Logs → Traces rồi mitigation.
@@ -93,7 +99,6 @@ Giữ đúng ba output text và năm ảnh dưới đây. Không tách thêm ả
 
 - [ ] Kết quả và evidence thuộc commit SHA cuối.
 - [x] Tất cả ảnh/output mở được bằng đường dẫn tương đối.
-- [x] Có đúng 3 file text và 5 ảnh runtime theo hướng dẫn.
 - [x] Incident evidence nối đúng metric → log → trace.
 - [x] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret.
 - [x] Repository chạy lại được theo README.
